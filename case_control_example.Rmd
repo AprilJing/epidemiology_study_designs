@@ -6,6 +6,9 @@ output: html_document
 ---
 
 ## Introduction
+
+- This markdown document follows some key concepts outlined in Rothman's *Modern Epidemiology*.
+
 - I used R throughout this presentation to simulate hypothetical data to help visualize case-control studies. 
 
 - I built this presentation using R markdown. Code to reproduce these examples are included
@@ -46,7 +49,7 @@ pop_data <- data_frame(x = rep(seq(from = 1, to = 100, by =1), 100)) %>%
   cbind(y = rep(seq(from = 1, to = 100, by =1), 100)) 
 ```
 
-Let's plot the source pouplation at time 0, where each dot represents a subject.
+Let's plot the source population at time 0, where each dot represents a subject. 
 
 ```{r time 0 plot, message = F}
 # plot of population at time 0 ----
@@ -75,7 +78,7 @@ pop_data <- pop_data %>%
          exp_yn = ifelse(exposure == 1, "Yes", "No"))
 ```
 
-Let's do some quick descriptives to make sure we correctly simulated a ~50% distribution of exposure in our data.
+Let's do some quick descriptive to make sure we correctly simulated a ~50% distribution of exposure in our data.
 
 ```{r time 0 exposure stats, message = F}
 xtabs(~ exp_yn, pop_data) # cross tabs of exposure
@@ -84,12 +87,12 @@ mean(pop_data$exposure) # proportion of exposed in source pop
 
 And let's plot what this exposure might look like in our population.
 
-```{r}
+```{r exp time 0}
 # plot of exposure at time 0 ----
 ggplot(pop_data, aes(x=x, y=y, color = exp_yn)) +
   geom_point() +
   scale_color_manual(guide = guide_legend("Exposure"), 
-                     values = c("grey", "blue")) +
+                     values = c("orange", "blue")) +
   # title at time 0
   ggtitle("Population Exposure - Time 0") +
   theme(panel.background = element_rect("white"),
@@ -100,32 +103,140 @@ ggplot(pop_data, aes(x=x, y=y, color = exp_yn)) +
 ```
 
 
-
-```{r population sim at time 0, message=F}
-# simulation population data ----
-pop_data <- data_frame(x = rep(seq(from = 1, to = 100, by =1), 100)) %>% 
-  arrange(x) %>%  # sort x by ascending values
-  cbind(y = rep(seq(from = 1, to = 100, by =1), 100)) %>% 
-  # create randomly assigned proportion of disease
-  mutate(exposure = rbinom(10000, size = 1, prob = 0.5),
-         exp_yn = ifelse(exposure == 1, "Yes", "No"))
-
-```
-
 #### Disease Incidence at Time 1
 
 We now need to simulate the association between exposure and disease at time 1 (some discrete time later, for example 1 year later).
 
 Let's check back in at time point 1 to measure those who developed disease.
 
-We need to simulate the strength of association and distribution of the disaese. We'll use a logistic regression model to define the relationship between exposure and the probability of disease. I want a odds ratio of around ~2.0 and a incidence of disease overall of around ~5%.
+We need to simulate the strength of association and distribution of the disease. We'll use a logistic regression model to define the relationship between exposure and the probability of disease. I want a odds ratio of around ~2.0 and a incidence of disease overall of around ~5%.
 
-```{r define associaiton bw exp and dis, echo = F, message=F}
+
+```{r simulate exp dis association, message=F}
 # finding the formula of the baseline disease probability I want
 #1/(1+exp(-(-3.6 + 0.69))) 
-# relationship between dis and exp
-logit_form = -3.25 + 0.69*pop_data$expose # linear combination with a bias
+# logit relationship between dis and exp
+logit_form = -3.33 + 0.69*pop_data$exposure # linear combination with a bias
+# define probability of disease given formula
 pr = 1/(1+exp(-logit_form))   
 
+# simulate disease
+pop_data <- pop_data %>% 
+  cbind(disease = rbinom(10000, size = 1, prob = pr)) %>% 
+  mutate(dis_yn = ifelse(disease == 1, "Yes", "No"),
+         # make 4 category exposure/disease variable
+         exp_dis = as.factor(
+                   ifelse(exposure == 0 & disease == 0, "Exp = N, Dis = N",
+                   ifelse(exposure == 0 & disease == 1, "Exp = N, Dis = Y",
+                   ifelse(exposure == 1 & disease == 0, "Exp = Y, Dis = N",
+                   ifelse(exposure == 1 & disease == 1, "Exp = Y, Dis = Y", 
+                          NA))))))
+
 ```
+
+Let's check some summary statistics on our simulated data to make sure our data look as expected.
+
+```{r pop exp dis summary stats, message=F}
+summary(pop_data$exp_dis)
+# check to make sure disease in population is around ~5%
+mean(pop_data$disease) 
+# 2x2 table
+xtabs(~exp_yn + dis_yn, pop_data)
+```
+
+Let's plot this population now.
+
+```{r plot exp dis time 1, message=F}
+# plot of population exposure/disease 
+ggplot(pop_data, aes(x=x, y=y, color = exp_dis, shape = exp_dis)) +
+  geom_point() +
+  scale_color_manual(guide = guide_legend("Exposure/Disease"), 
+                     values = c("orange", "orange", "blue", "blue")) +
+  # custom shape
+  scale_shape_manual(guide = guide_legend("Exposure/Disease"), 
+                     values = c(19, 25, 19, 25)) + 
+  # title at time 0
+  ggtitle("Population Exposure/Disease - Time 1") +
+  theme(panel.background = element_rect("white"),
+        axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())
+
+```
+
+Now that we have defined our exposure/disease association in the population, we can calculate a couple measures of association. For simplicity, we will calculate the risk ratio, risk difference, and odds ratio. All of these are appropriate measures of association to calculate in a population.
+
+```{r pop risk est, message = F}
+# risk ratio
+risk_ratio <- (370/(370+4664))/(203/(203+4763)) 
+risk_ratio
+
+# risk difference
+risk_diff <- (370/(370+4664))-(203/(203+4763)) 
+risk_diff
+
+# odds ratio
+odds_ratio <- (370/4664)/(203/4763)
+odds_ratio
+
+```
+
+For our risk ratio, we can interpret this as those exposed have a ~80% increase in risk for disease relative to those not exposed. For our risk difference, we can interpret this as the risk for disease is ~3% higher in those exposed compared to those unexposed. For the odds ratio, we may interpret this as the odds of disease in the exposed group is ~86% higher than the odds of disease in the unexposed group. Notice how close this estimate is to our estimate of the risk ratio. This is what they mean by the 'rare disease' assumption, where when the disease is rare, the odds ratio approximates the risk ratio. Thus, we could interpret the odds ratio the same way we interpret the risk ratio. If you look at the 2x2 table closely, it should make sense why the OR is so close to the RR.
+
+Since this is our source population, these estimates are the 'true' estimates of our exposure/disease relationship. We don't need to calculate confidence intervals around these estimates.
+
+### Selecting Cases and Controls
+
+Why use a case-control study over some other studies? Well, if done correctly, it's a very efficient. Both in number of people needed and cost. I have used case-control studies usually in an existing cohort (nested case-control), where I wanted to look at the association between an expensive biomarker and a defined outcome. Another good example are genome-wide association studies (GWAS), where genotyping participants is very expensive. Therefore these studies often recruit cases of an outcome (e.g. rheumatoid arthritis), and then recruit suitable controls. The frequency of certain single-nucleotide polymorphisms (SNPs) are then compared between cases and controls. If it's not difficult to recruit subjects or measure exposure, then perhaps another study design besides the case-control design should be considered.
+
+For both cases and controls...
+
+1. Define your source population.
+
+#### Case Selection
+
+1. Cases need to be selected from the source population (a pattern is beginning to emerge). 
+
+Hopefully not much more needs to be said about this. You can't use results from your case-control population to
+make inference about the relationship between exposure and disease in the source population. For example, if you were interested on factors associated with concussions in football players, you wouldn't want to recruit concussion cases in baseball players. 
+
+2. Have a well-defined outcome. 
+
+Be as specific as you can. It makes it easier to identify your cases. For example, you could define 'arthritis' as your outcome, but this could include osteoarthritis (wear and tear arthritis). If you were really interested in autoimmune arthritis, you would pick an outcome like 'rheumatoid arthritis'. Along these lines, you can even be more specific. Do you want self-reported rheumatoid arthritis? Physician-diagnosed rheumatoid arthritis? Or rheumatoid arthritis as diagnosed by a board-certified rheumatologist using the 2010 ACR/EULAR criteria? As you are probably learning, epidemiology is all about trade-offs. With very specific outcomes (like the last one), it may be more difficult or expensive to find these cases. But if we just used the first example of 'arthritis', that may not be specific enough to appropriately answer our research question as the pathophysiology or factors that are associated with that outcome could be very different that our more specific outcomes.
+
+3. Selection of cases needs to be independent of exposure. 
+
+If you consider exposure in your selection of cases, you will bias the exposure distribution of your sampling cases. We'll come back to this example when we select some cases and controls from our simulated source population.
+
+
+#### Control Selection
+
+1. Controls need to be selected from the same source population the cases were selected from (looks like the source population is important). As stated in *Modern Epidemiology 3rd Edition*.
+
+> Controls should be selected from the same population--the source population--that gives rise to the study cases. If this rule cannot be followed, there needs to be solid evidence that the population supplying controls has an exposure distributoin identical to that of the population that is the source of cases, which is a very stringent demand that is rarely demonstrable.
+
+Again, this should make sense. We likely wouldn't want to compare cases of concussions in football players to controls (no concussion) sampled from baseball players. Especially if 'tackling' was our exposure of interest as the distribution of tackles in football is much higher than the distribution of tackles in baseball (which hopefully is 0). 
+However, as Rothman et al. point out, there may be reasons why you might sample controls from a different source population if it can be shown the distribution of exposure would be similar to the source population of cases. This is nearly impossible to do, so it's just best to make sure your cases and controls come from the same source population. 
+
+2. Controls should be at risk for developing the outcome. 
+
+This isn't directly stated in *Modern Epidemiology*, but this should be considered when selecting controls. Ask yourself, are these controls at risk of developing disease? A classic example (I think) is a case-control study of ovarian cancer in women, where the control group contained fair amount of hospital controls that contained women who had hysterectomy. These women were not at risk of developing ovarian cancer and therefore not appropriate controls.
+
+3. Selection of controls needs to be independent of exposure. Furthermore, Rothman et al goes on to say...
+
+> Within strata or factors that will be used for stratification in the analysis, controls should be selected independently of their exposure status, in that the sampling rate for controls should not vary with exposure.
+
+### Assessing Exposure in Case-Control Studies
+
+Once you have selected your cases and controls, we then compare the distribution of exposure in the cases to that of the controls. This is the main hypothesis we test. Namely the proportion/mean/whatever of exposure in cases is different from proportion/mean/whatever of exposure in cases.
+
+There is one rule for assessing exposure.
+
+1. Exposure *should* be antecedent (happen before) of the disease.
+
+This should make sense too. You wouldn't want to look at an 'exposure' that may have happened after disease occurred. For example, you wouldn't want to find cases of people with high blood pressure and controls without high blood pressure and compare salt intake a couple years after case/control status was assessed as cases with high blood pressure may have lower sodium intake relative to controls.
+
+I think these concepts will be easier to understand with our simulated data. So lets select some cases from 
+
 
