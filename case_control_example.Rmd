@@ -81,8 +81,10 @@ pop_data <- pop_data %>%
 Let's do some quick descriptive to make sure we correctly simulated a ~50% distribution of exposure in our data.
 
 ```{r time 0 exposure stats, message = F}
-xtabs(~ exp_yn, pop_data) # cross tabs of exposure
-mean(pop_data$exposure) # proportion of exposed in source pop
+# cross tabs of exposure
+xtabs(~ exp_yn, pop_data) 
+# proportion of exposed in source pop
+mean(pop_data$exposure) 
 ```
 
 And let's plot what this exposure might look like in our population.
@@ -92,7 +94,7 @@ And let's plot what this exposure might look like in our population.
 ggplot(pop_data, aes(x=x, y=y, color = exp_yn)) +
   geom_point() +
   scale_color_manual(guide = guide_legend("Exposure"), 
-                     values = c("orange", "blue")) +
+                     values = c("aquamarine1", "blue")) +
   # title at time 0
   ggtitle("Population Exposure - Time 0") +
   theme(panel.background = element_rect("white"),
@@ -137,11 +139,13 @@ pop_data <- pop_data %>%
 Let's check some summary statistics on our simulated data to make sure our data look as expected.
 
 ```{r pop exp dis summary stats, message=F}
-summary(pop_data$exp_dis)
 # check to make sure disease in population is around ~5%
 mean(pop_data$disease) 
 # 2x2 table
-xtabs(~exp_yn + dis_yn, pop_data)
+pop_tab <- xtabs(~exp_yn + dis_yn, pop_data)
+pop_tab
+# exposure proportion given disease
+prop.table(pop_tab, 2)
 ```
 
 Let's plot this population now.
@@ -151,7 +155,7 @@ Let's plot this population now.
 ggplot(pop_data, aes(x=x, y=y, color = exp_dis, shape = exp_dis)) +
   geom_point() +
   scale_color_manual(guide = guide_legend("Exposure/Disease"), 
-                     values = c("orange", "orange", "blue", "blue")) +
+                     values = c("aquamarine1", "aquamarine1", "blue", "blue")) +
   # custom shape
   scale_shape_manual(guide = guide_legend("Exposure/Disease"), 
                      values = c(19, 25, 19, 25)) + 
@@ -162,7 +166,6 @@ ggplot(pop_data, aes(x=x, y=y, color = exp_dis, shape = exp_dis)) +
         axis.text = element_blank(),
         axis.title = element_blank(),
         axis.ticks = element_blank())
-
 ```
 
 Now that we have defined our exposure/disease association in the population, we can calculate a couple measures of association. For simplicity, we will calculate the risk ratio, risk difference, and odds ratio. All of these are appropriate measures of association to calculate in a population.
@@ -237,6 +240,70 @@ There is one rule for assessing exposure.
 
 This should make sense too. You wouldn't want to look at an 'exposure' that may have happened after disease occurred. For example, you wouldn't want to find cases of people with high blood pressure and controls without high blood pressure and compare salt intake a couple years after case/control status was assessed as cases with high blood pressure may have lower sodium intake relative to controls.
 
-I think these concepts will be easier to understand with our simulated data. So lets select some cases from 
+2. Selection of cases and controls should be independent of exposure status. 
 
+This is a rehash again, but should make sense by now. For example, we don't want to select disease cases, but then decide we only want disease cases that were exposed. That would bias our estimates of association.
 
+## Case-Control Selection from Source Data
+
+I think these concepts will be easier to understand with our simulated data. So lets select some cases from our simulated source population. Let's start by selecting all our cases since we really only have ~570 cases.
+
+```{r casecontrol data, message=F}
+# output the cases
+all_cases_data <- pop_data %>% 
+  filter(disease == 1) 
+
+# pick double the controls
+sample_control_data <- pop_data %>% 
+  filter(disease == 0) %>% 
+  sample_n(2*573)
+
+# row bind the two dataframes together
+case_control_data1 <- bind_rows(all_cases_data, sample_control_data)
+```
+
+Let's plot our selected cases and controls. They will still maintain the same positions they had in the source population.
+
+```{r casecontrol 1 plot, message = F}
+# plot of population exposure/disease 
+ggplot(case_control_data1, aes(x=x, y=y, color = exp_dis, shape = exp_dis)) +
+  geom_point() +
+  scale_color_manual(guide = guide_legend("Exposure/Disease"), 
+                     values = c("aquamarine1", "aquamarine1", "blue", "blue")) +
+  # custom shape
+  scale_shape_manual(guide = guide_legend("Exposure/Disease"), 
+                     values = c(19, 25, 19, 25)) + 
+  # title at time 0
+  ggtitle("Case-Control Sample (all cases and 2x controls)") +
+  theme(panel.background = element_rect("white"),
+        axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())
+```
+
+We'll aslo calculate some descriptive statistics. 
+
+```{r casecontrol 1 states, message = F}
+# cross tabs of exposure
+cc_tab1 <- xtabs(~ exp_yn + dis_yn, case_control_data1) 
+cc_tab1
+# proportion of exposure, given disease
+prop.table(cc_tab1, 2)
+
+```
+
+You can see from the above 2x2 table, that the proportion of exposure in controls (disease no), is roughly equivalent to our sample, where the controls had a proportion of exposure of 0.485, and in the sample population, those without the disease had a proportion of exposure of 0.495.
+
+```{r casecontrol association, message = F}
+# dataframe of odds ratio
+cc_or_mod <- tidy(glm(disease ~ exposure, data = case_control_data1,
+             family = "binomial"(link="logit")))
+
+odds_ratio <- round(exp(cc_or_mod[2, 2]),2)
+lower_bound <- round(exp(cc_or_mod[2, 2] - (1.96*cc_or_mod[2,3])),2)
+upper_bound <- round(exp(cc_or_mod[2, 2] + (1.96*cc_or_mod[2,3])),2)
+
+cc_odds_ratio <- c(odds_ratio, lower_bound, upper_bound)
+cc_odds_ratio
+```
