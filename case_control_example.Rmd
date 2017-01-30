@@ -1,0 +1,131 @@
+---
+title: "Case-Control Study Design"
+author: "Ryan Gan"
+date: "1/29/2017"
+output: html_document
+---
+
+## Introduction
+- I used R throughout this presentation to simulate hypothetical data to help visualize case-control studies. 
+
+- I built this presentation using R markdown. Code to reproduce these examples are included
+
+- The following libraries are needed to run the script. Tidyverse contains the 'dplyr' package for data wrangling, and 'ggplot2' for figures. The 'broom' package creates tidy data frames of coefficients from model objects.
+
+```{r libraries,  echo = T, message = F}
+# tidyverse package contains dplyr and ggplot packages 
+library(tidyverse) 
+# broom package allows for easy output of coefficients from models
+library(broom)
+# setting a seed for simulations so they turn out the same each time
+set.seed(987)
+```
+
+
+## Background
+
+As epidemiologists, we study the distribution of diseases, and factors that may influence those distributions in populations. Through this process, we hope to either describe distributions of disease to better understand the burden of disease (i.e. prevalence of obesity). Even better, we hope to identify modifiable factors that may explain differences of disease distributions. The ultimate goal is to find these modifiable factors with the hope of intervening to improve population health.
+
+This markdown document focuses on the case-control study design. 
+
+## Case-Control Study 
+
+#### Basic concept
+
+Cases of a specific health outcome are identified from a source population. Controls without the disease are then identified from the same source population. The exposure distribution in cases is then compared to the exposure distribution of the representative control population. The hypothesis tested is that the distribution of exposure is different between cases and controls.
+
+### Source Population
+Let's start out with a source population.
+
+I simulated a population of 10,000 individuals. In this simulation, x and y are sequences of values 1 to 100 to allow for ploting, where each circle represents an individual in the population. Right now we don't know anything about their exposure or disease status.
+
+```{r population sim at time 0, message=F}
+# simulation population data ----
+pop_data <- data_frame(x = rep(seq(from = 1, to = 100, by =1), 100)) %>% 
+  arrange(x) %>%  # sort x by ascending values
+  cbind(y = rep(seq(from = 1, to = 100, by =1), 100)) 
+```
+
+Let's plot the source pouplation at time 0, where each dot represents a subject.
+
+```{r time 0 plot, message = F}
+# plot of population at time 0 ----
+ggplot(pop_data, aes(x=x, y=y)) +
+  geom_point(color = "grey") +
+  # title at time 0
+  ggtitle("Population - Time 0") +
+  theme(panel.background = element_rect("white"),
+        axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())
+
+```
+
+
+#### Exposure at Time 0
+Let's simulate an exposure distribution for the population, where around 50% of the source population is exposed at time 0. 
+
+The following code is where I created a binary exposure in the population of around 50% exposed (yes), and 50% unexposed (no).
+
+```{r exposure of source population, message=F}
+pop_data <- pop_data %>% 
+  # create randomly assigned proportion of disease
+  mutate(exposure = rbinom(10000, size = 1, prob = 0.5),
+         exp_yn = ifelse(exposure == 1, "Yes", "No"))
+```
+
+Let's do some quick descriptives to make sure we correctly simulated a ~50% distribution of exposure in our data.
+
+```{r time 0 exposure stats, message = F}
+xtabs(~ exp_yn, pop_data) # cross tabs of exposure
+mean(pop_data$exposure) # proportion of exposed in source pop
+```
+
+And let's plot what this exposure might look like in our population.
+
+```{r}
+# plot of exposure at time 0 ----
+ggplot(pop_data, aes(x=x, y=y, color = exp_yn)) +
+  geom_point() +
+  scale_color_manual(guide = guide_legend("Exposure"), 
+                     values = c("grey", "blue")) +
+  # title at time 0
+  ggtitle("Population Exposure - Time 0") +
+  theme(panel.background = element_rect("white"),
+        axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())
+```
+
+
+
+```{r population sim at time 0, message=F}
+# simulation population data ----
+pop_data <- data_frame(x = rep(seq(from = 1, to = 100, by =1), 100)) %>% 
+  arrange(x) %>%  # sort x by ascending values
+  cbind(y = rep(seq(from = 1, to = 100, by =1), 100)) %>% 
+  # create randomly assigned proportion of disease
+  mutate(exposure = rbinom(10000, size = 1, prob = 0.5),
+         exp_yn = ifelse(exposure == 1, "Yes", "No"))
+
+```
+
+#### Disease Incidence at Time 1
+
+We now need to simulate the association between exposure and disease at time 1 (some discrete time later, for example 1 year later).
+
+Let's check back in at time point 1 to measure those who developed disease.
+
+We need to simulate the strength of association and distribution of the disaese. We'll use a logistic regression model to define the relationship between exposure and the probability of disease. I want a odds ratio of around ~2.0 and a incidence of disease overall of around ~5%.
+
+```{r define associaiton bw exp and dis, echo = F, message=F}
+# finding the formula of the baseline disease probability I want
+#1/(1+exp(-(-3.6 + 0.69))) 
+# relationship between dis and exp
+logit_form = -3.25 + 0.69*pop_data$expose # linear combination with a bias
+pr = 1/(1+exp(-logit_form))   
+
+```
+
