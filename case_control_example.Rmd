@@ -429,4 +429,5 @@ This is probalby not new information, but the more cases and controls you have, 
 
 ## Confounding Bias in Case-Control Studies
 
+As with any epidemiologic study, we have to deal with confounding.
 
