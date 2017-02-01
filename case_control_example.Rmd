@@ -394,7 +394,7 @@ for(i in 1:length(n_case_control)){
     
   } # end first loop repeated sampling
   # take the median of the vectors
-  or_est <- quantile(or_vector, c(0.025, 0.5, 0.975))
+  or_est <- quantile(or_vector, c(0.01, 0.5, 0.99))
   # fill bounds of matrix
   bias_matrix[i, 3] <- or_est[1]
   bias_matrix[i, 2] <- or_est[2]
@@ -406,11 +406,11 @@ bias_df <- as.data.frame(bias_matrix)
 
 # plot of bias as sample size increases
 ggplot(bias_df, aes(x=samp_n)) +
-  geom_ribbon(aes(ymin=perc_bias_lower, ymax=perc_bias_upper), alpha=0.5,
+  geom_ribbon(aes(ymin=perc_bias_lower, ymax=perc_bias_upper), alpha=0.4,
               fill = "blue") +
   geom_line(aes(y = perc_bias_median), color = "blue") +
   ggtitle("Percent Bias vs. Sample Size") +
-  ylab(expression("Percent Bias")) +
+  ylab(expression("Percent Bias (% Estimated OR is Different from True OR)")) +
   xlab('1x1 Sample Size of Cases and Controls') + 
   theme(panel.background = element_rect(fill = 'white', colour = 'black'),
     panel.grid.major = element_blank(),
@@ -423,9 +423,7 @@ ggplot(bias_df, aes(x=samp_n)) +
 
 ```
 
-This plot shows the range of percent bias [(True Odds Ratio - Case-Control Odds Ratio)/ True Odds Ratio] improves as sample size increases. The closer to 0, the less bias.
-
-Notice the median estimate (blue line running right across 0) is perfectly at 0, suggesting no bias. This is a good example of why it's important to replicate the study question over and over. Over 1000 replicates, the median values of all those replicates has no bias. However, you can see the 95% bounds based on sample size narrow as sample size increases. I'd say that around 100 cases and controls, sample size may stablize a bit.
+This plot shows the range of percent bias of beta estimates [(True Odds Ratio - Case-Control Odds Ratio)/ True Odds Ratio] improves as sample size increases. The closer to 0, the less bias. Notice the median estimate (blue line running right across 0) is perfectly at 0, suggesting no bias. This is a good example of why it's important to replicate. Over 1000 replicates, the median values of all those replicates has no bias. However, you can see the 99% bounds based on sample size narrow as sample size increases. I'd say that around 100 cases and controls, sample size may stablize a bit.
 
 This is probalby not new information, but the more cases and controls you have, the better.
 
