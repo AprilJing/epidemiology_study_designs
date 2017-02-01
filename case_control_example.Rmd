@@ -423,7 +423,9 @@ ggplot(bias_df, aes(x=samp_n)) +
 
 ```
 
-This plot shows the range of percent bias [(True Odds Ratio - Case-Control Odds Ratio)/ True Odds Ratio] improves as sample size increases. The closer to 0, the less bias. Notice the median estimate (blue line running right across 0) is perfectly at 0, suggesting no bias. This is a good example of why it's important to replicate. Over 1000 replicates, the median values of all those replicates has no bias. However, you can see the 95% bounds based on sample size narrow as sample size increases. I'd say that around 100 cases and controls, sample size may stablize a bit.
+This plot shows the range of percent bias [(True Odds Ratio - Case-Control Odds Ratio)/ True Odds Ratio] improves as sample size increases. The closer to 0, the less bias.
+
+Notice the median estimate (blue line running right across 0) is perfectly at 0, suggesting no bias. This is a good example of why it's important to replicate the study question over and over. Over 1000 replicates, the median values of all those replicates has no bias. However, you can see the 95% bounds based on sample size narrow as sample size increases. I'd say that around 100 cases and controls, sample size may stablize a bit.
 
 This is probalby not new information, but the more cases and controls you have, the better.
 
