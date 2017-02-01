@@ -431,9 +431,105 @@ This is probalby not new information, but the more cases and controls you have, 
 
 ## Confounding Bias in Case-Control Studies
 
-As with any epidemiologic study, we have to deal with confounding. Let's simulate some confounding factors in to our study design.
+As with any epidemiologic study, we have to deal with confounding. Let's simulate one confounding factor (Sex) in to our study design. 
 
-```{r confounding, message=F}
+```{r confounding sex, message=F}
+# this chunk of code uses the simcausal package
+c_sex_dag <- DAG.empty()
+
+c_sex_dag <- c_sex_dag +
+  # binary sex distribution
+  node("Sex", distr = "rcat.b1", prob = c(0.5, 0.5)) +
+  # age continuous 
+  node("Exp", distr = "rbern", 
+       prob = plogis(-3.0 + 2 * Sex)) +  
+  node("Dis", distr = "rbern",
+  prob = plogis(-0.5 + 0.69 * Exp + -2 * Sex))
+  
+c_sex_dag <- set.DAG(c_sex_dag)
+
+# plot DAG
+plotDAG(c_sex_dag, xjitter = 0.3, yjitter = 0.04,
+        edge_attrs = list(width = 0.5, arrow.width = 1.5, arrow.size = 0.4),
+        vertex_attrs = list(size = 12, label.cex = 0.8))
+
+# simulate causal structure
+c_sex_df <- sim(DAG = c_sex_dag, n = 10000, rndseed = 321) %>% 
+  mutate(Sex = ifelse(Sex == 2, 1, 0))
+```
+
+Now that we simulated a popualtion of 10,000 with approximaly the same distribution of exposure and disease with sex as confounding variabls, we'll calculate some summary statistics and the 'true' association between exposure and disease. 
+
+```{r pop confounding sex, message=F}
+summary(c_sex_df)
+
+true_est <- tidy(glm(Dis~ Exp + Sex, 
+                     data = c_sex_df, family = "poisson"))
+# true risk ratio estimate exposure/disease association
+rel_risk <- exp(true_est[2,2])
+rel_risk
+```
+
+In order to etimate the 'true' association between exposure and disease (risk ratio 2.11), we need to adjust for sex. 
+
+Let's see what happens when we create a case control study with a sample size of 50 cases and 50 controls.
+
+```{r case control confounding sex , message=F}
+case_control_data <- c_sex_df %>% 
+  # create selection variable
+  group_by(Dis) %>% 
+  do(sample_n(.,100))
+
+# 2x2 table
+xtabs(~ Dis + Exp, case_control_data)
+
+# regression model (unadjusted)
+casecont_est <- tidy(glm(Dis~ Exp , 
+  data = c_sex_df, family = "binomial"(link="logit"))) %>% 
+  mutate(OR = exp(estimate),
+         Lower_95 = exp(estimate - (1.96*std.error)),
+         Upper_95 = exp(estimate + (1.96*std.error))) %>% 
+  filter(term == "Exp") %>% 
+  select(OR, Lower_95, Upper_95) 
+  
+
+# estimate crude odds ratio and 95% bounds
+round(casecont_est,2)
+
+```
+
+Our crude odds ratio for this case-control sample suggests no association between exposure and disease (OR:0.96, 95%CI: 0.78-1.10). However, we know sex is a confounding variable based on our simulation.
+
+```{r case control adj model}
+# 2x2 table, stratified by sex
+xtabs(~ Dis + Exp + Sex, case_control_data)
+# even without calculating proportions, it's pretty clear the disease and exposure
+# is more likely in Sex == 1, 
+
+# regression model (adjusted)
+casecont_est <- tidy(glm(Dis~ Exp + Sex, 
+  data = c_sex_df, family = "binomial"(link="logit"))) %>% 
+  mutate(OR = exp(estimate),
+         Lower_95 = exp(estimate - (1.96*std.error)),
+         Upper_95 = exp(estimate + (1.96*std.error))) %>% 
+  filter(term == "Exp") %>% 
+  select(OR, Lower_95, Upper_95) 
+  
+
+# estimate crude odds ratio and 95% bounds
+round(casecont_est,2)
+```
+
+When we adjust for sex, we arrive at the appropriate estimate between exposure and disease. We'd conclude there is a significant association between exposure and disease, adjusting for sex (OR:2.06, 95%CI:1.71-2.48).
+
+**Key Point: Confounding can be accounted for in case-control designs via adjustment (Mantel-Hanzel, logistic regression).**
+
+## Matched Case-Control Studies
+
+Another variant of the case-control study commonly used in clinical studies is the matched case-control study.
+
+
+```{r confounding age and sex, message=F}
 # this chunk of code uses the simcausal package
 confounding_dag <- DAG.empty()
 
@@ -470,4 +566,3 @@ true_est <- tidy(glm(Dis~Exp + Age + Sex,
 rel_risk <- exp(true_est[2,2])
 rel_risk
 ```
-
