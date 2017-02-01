@@ -20,6 +20,8 @@ output: html_document
 library(tidyverse) 
 # broom package allows for easy output of coefficients from models
 library(broom)
+# nice package for simulating complicated data; uses SEM/DAG principles
+library(simcausal) 
 ```
 
 
@@ -409,7 +411,7 @@ ggplot(bias_df, aes(x=samp_n)) +
   geom_ribbon(aes(ymin=perc_bias_lower, ymax=perc_bias_upper), alpha=0.4,
               fill = "blue") +
   geom_line(aes(y = perc_bias_median), color = "blue") +
-  ggtitle("Percent Bias vs. Sample Size") +
+  ggtitle("Percent Bias vs. Sample Size (99% Bounds)") +
   ylab(expression("Percent Bias (% Estimated OR is Different from True OR)")) +
   xlab('1x1 Sample Size of Cases and Controls') + 
   theme(panel.background = element_rect(fill = 'white', colour = 'black'),
@@ -429,5 +431,43 @@ This is probalby not new information, but the more cases and controls you have, 
 
 ## Confounding Bias in Case-Control Studies
 
-As with any epidemiologic study, we have to deal with confounding.
+As with any epidemiologic study, we have to deal with confounding. Let's simulate some confounding factors in to our study design.
+
+```{r confounding, message=F}
+# this chunk of code uses the simcausal package
+confounding_dag <- DAG.empty()
+
+confounding_dag <- confounding_dag +
+  # binary sex distribution
+  node("Sex", distr = "rcat.b1", prob = c(0.5, 0.5)) +
+  # age continuous 
+  node("Age", distr = "rnorm", mean = 45, sd  = 10) +
+  node("Exp", distr = "rbern", 
+       prob = plogis(1 + -0.05 * Age + 1 * Sex)) +  
+  node("Dis", distr = "rbern",
+  prob = plogis(-7 + 0.69 * Exp + 0.1 * Age + -0.5 * Sex))
+  
+confounding_dag <- set.DAG(confounding_dag)
+
+# plot DAG
+plotDAG(confounding_dag, xjitter = 0.3, yjitter = 0.04,
+        edge_attrs = list(width = 0.5, arrow.width = 1.5, arrow.size = 0.4),
+        vertex_attrs = list(size = 12, label.cex = 0.8))
+
+# simulate causal structure
+pop_confound_df <- sim(DAG = confounding_dag, n = 10000, rndseed = 321) %>% 
+  mutate(Sex = ifelse(Sex == 2, 1, 0))
+```
+
+Now that we simulated a popualtion of 10,000 with approximaly the same distribution of exposure and disease with age and sex as confounding variables, we'll calculate some summary statistics and the 'true' association between exposure and disease.
+
+```{r pop confound sim stats, message=F}
+summary(pop_confound_df)
+
+true_est <- tidy(glm(Dis~Exp + Age + Sex, 
+                     data = pop_confound_df, family = "poisson"))
+# true risk ratio estimate exposure/disease association
+rel_risk <- exp(true_est[2,2])
+rel_risk
+```
 
