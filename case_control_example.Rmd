@@ -536,8 +536,8 @@ cases <- c_sex_df %>%
   filter(Dis == 1) %>% 
   sample_n(100)
 
-controls <- c_sex_df %>% 
-  filter(Dis == 0)
+
+
 
 exact.match.fun <- function(case_data, control_data, control_n, match_var) {
   
