@@ -472,7 +472,7 @@ rel_risk
 
 In order to etimate the 'true' association between exposure and disease (risk ratio 2.11), we need to adjust for sex. 
 
-Let's see what happens when we create a case control study with a sample size of 50 cases and 50 controls.
+Let's see what happens when we create a case control study with a sample size of 100 cases and 100 controls.
 
 ```{r case control confounding sex , message=F}
 case_control_data <- c_sex_df %>% 
@@ -526,7 +526,30 @@ When we adjust for sex, we arrive at the appropriate estimate between exposure a
 
 ## Matched Case-Control Studies
 
-Another variant of the case-control study commonly used in clinical studies is the matched case-control study.
+Another variant of the case-control study commonly used in clinical studies is the matched case-control study. In this study design, a case is identified, and then matched to n controls based on potential confounders. For many clinicians I met, this type of design made intuitive sense as a way to control confounding. From an epidemiologits' stand point, the big benefit of a matched design over a standard case-control study is that you can increase your statistical efficiency, meaning you need fewer cases and controls. Furthermore, if the matching are not truly confounders, then matching is of no benefit. There is another big nuances about matching in case-control studies, where by design, you have introduced a bias that must be accounded for. For further reading, see *Modern Epidemiology* page 175.  
+
+Example of a 1 to 1 matched design. Let's take 100 random cases and match them to 100 controls based on our confounding variable sex.
+
+```{r 1 to 1 matched case-control, message = F}
+
+cases <- c_sex_df %>% 
+  filter(Dis == 1) %>% 
+  sample_n(100)
+
+controls <- c_sex_df %>% 
+  filter(Dis == 0)
+
+exact.match.fun <- function(case_data, control_data, control_n, match_var) {
+  
+}
+
+  
+
+# Let's check the distribution of exposure by sex in our cases
+xtabs(~Exp + Sex, cases)
+xtabs(~Exp + Sex, controls)
+
+```
 
 
 ```{r confounding age and sex, message=F}
