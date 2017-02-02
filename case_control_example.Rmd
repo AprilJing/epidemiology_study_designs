@@ -536,13 +536,33 @@ cases <- c_sex_df %>%
   filter(Dis == 1) %>% 
   sample_n(100)
 
-
+control <- c_sex_df %>% 
+  filter(Dis == 0)
 
 
 exact.match.fun <- function(case_data, control_data, control_n, match_var) {
+  case_data <- cases
+  match_var <- "Sex"
   
+  
+  control_data <- control
+  for(i in length(case_data)){
+  i <- 1
+  case_match_var_n <- cases %>%
+    group_by(Sex) %>% 
+    summarise(n())
+  
+  
+  case_i[,which(colnames(case_i)==match_var)]
+  
+  control_i <- control_data %>% 
+    filter(match_val[] ==
+           case_i[,which(colnames(case_i)==match_var)])
+
+  }  
 }
 
+col <- 
   
 
 # Let's check the distribution of exposure by sex in our cases
