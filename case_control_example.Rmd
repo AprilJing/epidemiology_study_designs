@@ -22,8 +22,9 @@ library(tidyverse)
 library(broom)
 # nice package for simulating complicated data; uses SEM/DAG principles
 library(simcausal) 
+# survival package needed for clogit (matched case control)
+library(survival)
 ```
-
 
 ## Background
 
@@ -530,52 +531,43 @@ Another variant of the case-control study commonly used in clinical studies is t
 
 Example of a 1 to 1 matched design. Let's take 100 random cases and match them to 100 controls based on our confounding variable sex.
 
-```{r 1 to 1 matched case-control, message = F}
-
+```{r 1 to n matched case-control, message = F}
 # sloppy code to match. One day I may make a formula for 1x1 matching
-
-# create all combinations of matching variables, then assign each stratum a number
-strata_df<-expand.grid(Sex=unique(c_sex_df$Sex))
-strata_df$stratnum <- 1:dim(strata_df)[1]
-
-# merge strata numbers back to original DF
-case_control_data <- merge(c_sex_df, strata_df, by=c("Sex"), all.x=TRUE)
-
 # random subset of cases:
 set.seed(123)
-cases <- case_control_data %>% 
+cases <- c_sex_df %>% 
   filter(Dis == 1) %>% 
-  sample_n(100)
+  sample_n(25)
 
-# table to get the number of cases per stratum
-case_stratum_list <- data.frame(table(cases$stratnum))
-
-#create a df of only controls
-controls <- case_control_data %>% 
+control <- c_sex_df %>% 
   filter(Dis == 0)
 
-#ratio of controls per case
-controls_per_case <- 4
+# number of controls per case
+  n_control <- 4
+  seed_num <- 123
 
-# create final sample, starting with the cases, and the controls will be added as 
-# controls are selected for each stratum
+# create empty dataframe
+matched_df <- data_frame()
 
-casecontrol_sample <- cases
-#loop (ugh) to sample the cases per stratum
-for (i in 1:dim(case_stratum_list)[1]){
-  #Long line-- as i loops through the strata, 
-    # 1 subset the controls to the current stratum
-    # 2 select a random sample of controls from that stratum
-    #   (number of controls == number of cases in stratum * ratio for controls per case)
-    # 3 subset the control DF to only selected random sample
-    # 4 rbind to final DF
-  casecontrol_sample <- rbind(casecontrol_sample, 
-                        controls[sample( which(controls$stratnum==case_stratum_list[i,1]), 
-                                         controls_per_case * case_stratum_list[i,2]),])
-}
+# loop through each case and find matched controls
+for(i in 1:nrow(cases)){
+  case_i <- cases[i,] 
+  set.seed(seed_num)
+  case_control_i <- bind_rows(case_i, control[(sample(
+    which(control[,2] == case_i[1,2]), n_control, replace = F)),]) %>% 
+    mutate(match_id = i)
+
+  # this pops out a warning message the first time through as there
+  # is no ID yet
+  # fill case_control_data
+  matched_df <- bind_rows(matched_df, case_control_i)
   
-with(casecontrol_sample, table(Dis, stratnum))
+  # exclude controls already selected from pool so they aren't sampled again
+  control <- control[!(control$ID %in% matched_df$ID), ]
+}
 
+# check to make sure matched df has no repeat controls
+# !unique(matched_df$ID) # looks good
 
 # Let's check the distribution of exposure by sex in our cases
 xtabs(~Exp + Sex + Dis, casecontrol_sample)
@@ -583,12 +575,18 @@ xtabs(~Dis + Sex, matched_case_control)
 
 xtabs(~Dis + Exp + stratnum, casecontrol_sample)
 
-library(survival)
-model<-clogit(Dis ~ Exp + strata(stratnum), casecontrol_sample)
-
-summary(glm(Dis ~ Exp, casecontrol_sample, family = "binomial"))
+model <- clogit(Dis ~ Exp + strata(match_id), matched_df)
 summary(model)
-confint(model)
+
+summary(glm(Dis ~ Exp + Sex, matched_df, family = "binomial"))
+exp(0.44)
+
+# mantel hanzel adjustment
+# conditional odds ratio
+discord_pairs <- matched_df %>% 
+  group_by(match_id, Dis, Exp) %>% 
+  summarise(n_group = n())
+
 ```
 
 
