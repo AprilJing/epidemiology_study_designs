@@ -24,6 +24,8 @@ library(broom)
 library(simcausal) 
 # survival package needed for clogit (matched case control)
 library(survival)
+# matchit package for propensity matching
+library(MatchIt)
 ```
 
 ## Background
@@ -537,13 +539,13 @@ Example of a 1 to 1 matched design. Let's take 100 random cases and match them t
 set.seed(123)
 cases <- c_sex_df %>% 
   filter(Dis == 1) %>% 
-  sample_n(25)
+  sample_n(100)
 
 control <- c_sex_df %>% 
   filter(Dis == 0)
 
 # number of controls per case
-  n_control <- 4
+  n_control <- 1
   seed_num <- 123
 
 # create empty dataframe
@@ -570,25 +572,45 @@ for(i in 1:nrow(cases)){
 # !unique(matched_df$ID) # looks good
 
 # Let's check the distribution of exposure by sex in our cases
-xtabs(~Exp + Sex + Dis, casecontrol_sample)
-xtabs(~Dis + Sex, matched_case_control)
-
-xtabs(~Dis + Exp + stratnum, casecontrol_sample)
+xtabs(~Dis + Exp + match_id, matched_df)
 
 model <- clogit(Dis ~ Exp + strata(match_id), matched_df)
 summary(model)
 
 summary(glm(Dis ~ Exp + Sex, matched_df, family = "binomial"))
-exp(0.44)
+exp(0.72)
 
 # mantel hanzel adjustment
 # conditional odds ratio
-discord_pairs <- matched_df %>% 
-  group_by(match_id, Dis, Exp) %>% 
-  summarise(n_group = n())
 
 ```
 
+In the matched design, you may gain statistical efficiency, but you introduce a bias that needs to be accounted for either by adjustment (Mantel-Hanzel, regression), or the conditional odds ratio, which is a pain to calculate. I'm trying to figure out how to make it easy to calculate in this dataframe.
+
+```{r frequency/propensity matching , message = F}
+# using the same slected cases, we put them in a dataset with all our controls
+df_to_prop_match <- bind_rows(cases, controls)
+
+# you can match on disease, just don't match on exposure since we
+# want to evaluate exposure in cases vs controls
+prop_match1 <- matchit(Dis~ Sex , data = df_to_prop_match, 
+                       method="nearest", distance="logit", ratio = 1)
+#To obtain matched data, type the following command,
+prop_matched_data <- match.data(prop_match1)
+#check balance
+summary(prop_matched_data)
+# notice you get a weights, and notice here how they are 1 as there 
+# are perfect matches
+
+# estimate
+summary(glm(Dis ~ Exp , prop_matched_data, family = "binomial")) 
+# again, if you don't adjust for Sex, your estimates are biased a tad
+summary(glm(Dis ~ Exp + Sex, prop_matched_data, family = "binomial")) 
+
+
+```
+
+So in summary, there are multiple ways to account for confounding variables in case-control designs. In my opinion, exact matching is probably the biggest pain unless you really think you need statistical efficiency. Logistic regression with adjustments will serve you pretty well. But at least you are aware of the other ways this was done in the past.
 
 ```{r confounding age and sex, message=F}
 # this chunk of code uses the simcausal package
