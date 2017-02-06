@@ -43,7 +43,7 @@ Cases of a specific health outcome are identified from a source population. Cont
 ### Source Population
 Let's start out with a source population.
 
-I simulated a population of 10,000 individuals. In this simulation, x and y are sequences of values 1 to 100 to allow for ploting, where each circle represents an individual in the population. Right now we don't know anything about their exposure or disease status.
+I simulated a population of 10,000 individuals. In this simulation, x and y are sequences of values 1 to 100 to allow for plotting, where each circle represents an individual in the population. Right now we don't know anything about their exposure or disease status.
 
 ```{r population sim at time 0, message=F}
 # simulation population data ----
@@ -483,22 +483,27 @@ case_control_data <- c_sex_df %>%
   group_by(Dis) %>% 
   do(sample_n(.,100))
 
-# 2x2 table
+# 2x2 table exposure by disease crude
 xtabs(~ Dis + Exp, case_control_data)
+(tidy(glm(Dis ~ Exp, case_control_data, family = "binomial")))
+
+# 2x2 exposure by sex
+xtabs(~ Exp + Sex, case_control_data)
+
+# 2x2 disease by sex
+xtabs(~ Dis + Sex, case_control_data)
+tidy(glm(Dis ~ Sex, case_control_data, family = "binomial"))
 
 # regression model (unadjusted)
 casecont_est <- tidy(glm(Dis~ Exp , 
-  data = c_sex_df, family = "binomial"(link="logit"))) %>% 
+  data = case_control_data, family = "binomial"(link="logit"))) %>% 
   mutate(OR = exp(estimate),
          Lower_95 = exp(estimate - (1.96*std.error)),
          Upper_95 = exp(estimate + (1.96*std.error))) %>% 
-  filter(term == "Exp") %>% 
-  select(OR, Lower_95, Upper_95) 
-  
-
+  filter(term == "Exp") 
 # estimate crude odds ratio and 95% bounds
-round(casecont_est,2)
-
+casecont_est <- round(casecont_est[, 6:8],2)
+  
 ```
 
 Our crude odds ratio for this case-control sample suggests no association between exposure and disease (OR:0.96, 95%CI: 0.78-1.10). However, we know sex is a confounding variable based on our simulation.
@@ -515,12 +520,9 @@ casecont_est <- tidy(glm(Dis~ Exp + Sex,
   mutate(OR = exp(estimate),
          Lower_95 = exp(estimate - (1.96*std.error)),
          Upper_95 = exp(estimate + (1.96*std.error))) %>% 
-  filter(term == "Exp") %>% 
-  select(OR, Lower_95, Upper_95) 
-  
-
-# estimate crude odds ratio and 95% bounds
-round(casecont_est,2)
+  filter(term == "Exp") 
+  # estimate crude odds ratio and 95% bounds
+casecont_est <- round(casecont_est[, 6:8],2)
 ```
 
 When we adjust for sex, we arrive at the appropriate estimate between exposure and disease. We'd conclude there is a significant association between exposure and disease, adjusting for sex (OR:2.06, 95%CI:1.71-2.48).
@@ -589,7 +591,7 @@ In the matched design, you may gain statistical efficiency, but you introduce a 
 
 ```{r frequency/propensity matching , message = F}
 # using the same slected cases, we put them in a dataset with all our controls
-df_to_prop_match <- bind_rows(cases, controls)
+df_to_prop_match <- bind_rows(cases, control)
 
 # you can match on disease, just don't match on exposure since we
 # want to evaluate exposure in cases vs controls
@@ -612,7 +614,7 @@ summary(glm(Dis ~ Exp + Sex, prop_matched_data, family = "binomial"))
 
 So in summary, there are multiple ways to account for confounding variables in case-control designs. In my opinion, exact matching is probably the biggest pain unless you really think you need statistical efficiency. Logistic regression with adjustments will serve you pretty well. But at least you are aware of the other ways this was done in the past.
 
-```{r confounding age and sex, message=F}
+```{r confounding age and sex, message=F, eval = F}
 # this chunk of code uses the simcausal package
 confounding_dag <- DAG.empty()
 
@@ -640,7 +642,7 @@ pop_confound_df <- sim(DAG = confounding_dag, n = 10000, rndseed = 321) %>%
 
 Now that we simulated a popualtion of 10,000 with approximaly the same distribution of exposure and disease with age and sex as confounding variables, we'll calculate some summary statistics and the 'true' association between exposure and disease.
 
-```{r pop confound sim stats, message=F}
+```{r pop confound sim stats, message=F, eval = F}
 summary(pop_confound_df)
 
 true_est <- tidy(glm(Dis~Exp + Age + Sex, 
