@@ -478,21 +478,14 @@ In order to etimate the 'true' association between exposure and disease (risk ra
 Let's see what happens when we create a case control study with a sample size of 100 cases and 100 controls.
 
 ```{r case control confounding sex , message=F}
+set.seed(123)
 case_control_data <- c_sex_df %>% 
   # create selection variable
   group_by(Dis) %>% 
   do(sample_n(.,100))
 
 # 2x2 table exposure by disease crude
-xtabs(~ Dis + Exp, case_control_data)
-(tidy(glm(Dis ~ Exp, case_control_data, family = "binomial")))
-
-# 2x2 exposure by sex
-xtabs(~ Exp + Sex, case_control_data)
-
-# 2x2 disease by sex
-xtabs(~ Dis + Sex, case_control_data)
-tidy(glm(Dis ~ Sex, case_control_data, family = "binomial"))
+xtabs(~ Exp + Dis, case_control_data)
 
 # regression model (unadjusted)
 casecont_est <- tidy(glm(Dis~ Exp , 
@@ -503,29 +496,63 @@ casecont_est <- tidy(glm(Dis~ Exp ,
   filter(term == "Exp") 
 # estimate crude odds ratio and 95% bounds
 casecont_est <- round(casecont_est[, 6:8],2)
-  
+casecont_est
 ```
 
-Our crude odds ratio for this case-control sample suggests no association between exposure and disease (OR:0.96, 95%CI: 0.78-1.10). However, we know sex is a confounding variable based on our simulation.
+We can test the confounding assumption in our case-control data. Is sex associated with exposure? Is sex associated with disease?
+
+
+```{r sex bivariate association in casecontrol, message=F}
+# 2x2 exposure by sex
+xtabs(~ Exp + Sex, case_control_data)
+# regression model sex -> exposure
+casecont_est <- tidy(glm(Exp ~ Sex , 
+  data = case_control_data, family = "binomial"(link="logit"))) %>% 
+  mutate(OR = exp(estimate),
+         Lower_95 = exp(estimate - (1.96*std.error)),
+         Upper_95 = exp(estimate + (1.96*std.error))) %>% 
+  filter(term == "Sex") 
+# estimate odds ratio and 95% bounds
+casecont_est <- round(casecont_est[, 6:8],2)
+casecont_est
+
+
+# 2x2 disease by sex
+xtabs(~ Dis + Sex, case_control_data)
+# regression model sex -> exposure
+casecont_est <- tidy(glm(Dis ~ Sex , 
+  data = case_control_data, family = "binomial"(link="logit"))) %>% 
+  mutate(OR = exp(estimate),
+         Lower_95 = exp(estimate - (1.96*std.error)),
+         Upper_95 = exp(estimate + (1.96*std.error))) %>% 
+  filter(term == "Sex") 
+# estimate odds ratio and 95% bounds
+casecont_est <- round(casecont_est[, 6:8],2)
+casecont_est
+
+```
+  
+Our crude odds ratio for this case-control sample suggests no association between exposure and disease (OR:1.08, 95%CI: 0.62-1.89). However, we know sex is a confounding variable based on our simulation.
 
 ```{r case control adj model}
 # 2x2 table, stratified by sex
-xtabs(~ Dis + Exp + Sex, case_control_data)
+xtabs(~ Exp + Dis + Sex, case_control_data)
 # even without calculating proportions, it's pretty clear the disease and exposure
 # is more likely in Sex == 1, 
 
 # regression model (adjusted)
 casecont_est <- tidy(glm(Dis~ Exp + Sex, 
-  data = c_sex_df, family = "binomial"(link="logit"))) %>% 
+  data = case_control_data, family = "binomial"(link="logit"))) %>% 
   mutate(OR = exp(estimate),
          Lower_95 = exp(estimate - (1.96*std.error)),
          Upper_95 = exp(estimate + (1.96*std.error))) %>% 
   filter(term == "Exp") 
-  # estimate crude odds ratio and 95% bounds
+  # estimate adjusted odds ratio and 95% bounds
 casecont_est <- round(casecont_est[, 6:8],2)
+casecont_est
 ```
 
-When we adjust for sex, we arrive at the appropriate estimate between exposure and disease. We'd conclude there is a significant association between exposure and disease, adjusting for sex (OR:2.06, 95%CI:1.71-2.48).
+When we adjust for sex, we arrive at the appropriate estimate between exposure and disease. We'd conclude there is a significant association between exposure and disease, adjusting for sex (OR:2.92, 95%CI:1.40-6.11).
 
 **Key Point: Confounding can be accounted for in case-control designs via adjustment (Mantel-Hanzel, logistic regression).**
 
@@ -570,11 +597,99 @@ for(i in 1:nrow(cases)){
   control <- control[!(control$ID %in% matched_df$ID), ]
 }
 
-# check to make sure matched df has no repeat controls
-# !unique(matched_df$ID) # looks good
+# Now that we've matched on sex, let's look at some contingency tables
+# sex and exposure
+xtabs(~ Sex + Exp, c_sex_df)
+# sex and disease
+xtabs(~ Sex + Dis, c_sex_df)
+# Source Population 
+xtabs(~Dis + Exp + Sex, c_sex_df)
 
-# Let's check the distribution of exposure by sex in our cases
+# regression model (unadjusted)
+pop_est <- tidy(glm(Dis~ Exp, 
+  data = c_sex_df, family = "poisson"(link="log"))) %>% 
+  mutate(OR = exp(estimate),
+         Lower_95 = exp(estimate - (1.96*std.error)),
+         Upper_95 = exp(estimate + (1.96*std.error))) %>% 
+  filter(term == "Exp") 
+  # estimate adjusted odds ratio and 95% bounds
+pop_est <- round(pop_est[, 6:8],2)
+pop_est
+
+# adjusted 
+pop_est <- tidy(glm(Dis~ Exp + Sex, 
+  data = c_sex_df, family = "poisson"(link="log"))) %>% 
+  mutate(OR = exp(estimate),
+         Lower_95 = exp(estimate - (1.96*std.error)),
+         Upper_95 = exp(estimate + (1.96*std.error))) %>% 
+  filter(term == "Exp") 
+  # estimate adjusted odds ratio and 95% bounds
+pop_est <- round(pop_est[, 6:8],2)
+pop_est
+
+
+# Disease by Sex
+xtabs(~ Sex + Dis, matched_df)
+
+# case control population
+xtabs(~Dis + Exp + Sex, matched_df)
+
+# matched df ----
+# case control population
 xtabs(~Dis + Exp + match_id, matched_df)
+
+# regression model (unadjusted)
+match_est <- tidy(glm(Dis~ Exp, 
+  data = matched_df, family = "binomial"(link="logit"))) %>% 
+  mutate(OR = exp(estimate),
+         Lower_95 = exp(estimate - (1.96*std.error)),
+         Upper_95 = exp(estimate + (1.96*std.error))) %>% 
+  filter(term == "Exp") 
+  # estimate adjusted odds ratio and 95% bounds
+match_est <- round(match_est[, 6:8],2)
+match_est
+
+# adjusted
+# regression model (adjusted)
+match_adj_est <- tidy(glm(Dis~ Exp + Sex, 
+  data = matched_df, family = "binomial"(link="logit"))) %>% 
+  mutate(OR = exp(estimate),
+         Lower_95 = exp(estimate - (1.96*std.error)),
+         Upper_95 = exp(estimate + (1.96*std.error))) %>% 
+  filter(term == "Exp") 
+  # estimate adjusted odds ratio and 95% bounds
+match_adj_est <- round(match_adj_est[, 6:8],2)
+match_adj_est
+
+
+# conditional odds ratio
+head(matched_df)
+
+table(exposure = matched_df$Exp, )
+
+?table
+?separate
+
+
+stocks <- data_frame(
+  time = as.Date('2009-01-01') + 0:9,
+  X = rnorm(10, 0, 1),
+  Y = rnorm(10, 0, 2),
+  Z = rnorm(10, 0, 4)
+)
+
+head(stocks)
+gather(stocks, stock, price, -time)
+stocks %>% gather(stock, price, -time)
+
+
+head(concord_discord_pairs)
+ 
+match_melt <- melt(matched_df, id = c("match_id", "Dis", "Exp"))   
+
+match_spread <- dcast(matched_df, match_id ~ Exp, value.var = c("Exp"), fun = sum)
+
+
 
 model <- clogit(Dis ~ Exp + strata(match_id), matched_df)
 summary(model)
@@ -582,8 +697,6 @@ summary(model)
 summary(glm(Dis ~ Exp + Sex, matched_df, family = "binomial"))
 exp(0.72)
 
-# mantel hanzel adjustment
-# conditional odds ratio
 
 ```
 
